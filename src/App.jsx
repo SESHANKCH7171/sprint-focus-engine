@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     Lock, Unlock, Play, Pause, RotateCcw, SkipForward,
     ChevronLeft, ChevronRight, Settings, ShieldAlert, CheckCircle2,
-    Minimize2, Maximize2, Flame, Calendar, Clock, Sparkles
+    Minimize2, Maximize2, Flame, Calendar, Clock, Sparkles, Download, Smartphone
 } from 'lucide-react';
 
 // --- TIME WISDOM QUOTES ---
@@ -268,12 +268,39 @@ export default function App() {
         }
     };
 
-    const resetTimer = () => {
-        setIsActive(false);
-        workerRef.current?.postMessage('STOP');
-        endTimeRef.current = null;
-        selectMode(mode);
+    // ----------------------------------------------------
+    // PWA IN-APP INSTALL ENGINE
+    // ----------------------------------------------------
+    const [deferredPrompt, setDeferredPrompt] = useState(null);
+    const [showInstallGuide, setShowInstallGuide] = useState(false);
+    const [isStandalone, setIsStandalone] = useState(false);
+
+    useEffect(() => {
+        const handleBeforeInstall = (e) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+        };
+        window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+            setIsStandalone(true);
+        }
+
+        return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+    }, []);
+
+    const handleInstallClick = async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                setDeferredPrompt(null);
+            }
+        } else {
+            setShowInstallGuide(true);
+        }
     };
+
 
     const handleCustomMinuteChange = (val) => {
         const parsed = Math.min(180, Math.max(1, parseInt(val, 10) || 1));
@@ -659,6 +686,16 @@ export default function App() {
 
                         {/* Action Buttons */}
                         <div className="flex items-center gap-2">
+                            {!isStandalone && (
+                                <button
+                                    onClick={handleInstallClick}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-black bg-amber-400 hover:bg-amber-300 rounded-xl transition shadow-md animate-pulse"
+                                    title="Install App on your Phone Home Screen"
+                                >
+                                    <Download size={13} />
+                                    <span>Install App</span>
+                                </button>
+                            )}
                             <button
                                 onClick={openDateModal}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-200 hover:text-amber-400 bg-neutral-950 border border-neutral-800 rounded-xl hover:bg-neutral-800/80 transition shadow-sm"
@@ -977,6 +1014,68 @@ export default function App() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ----------------------------------------------------
+                MOBILE INSTALLATION GUIDE MODAL
+               ---------------------------------------------------- */}
+            {showInstallGuide && (
+                <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+                    <div className="bg-neutral-900 border border-neutral-800 w-full max-w-md rounded-3xl p-6 shadow-2xl space-y-5">
+                        
+                        <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+                            <div className="flex items-center gap-2 text-amber-400 font-bold text-base">
+                                <Smartphone size={20} />
+                                <span>Install App on Your Phone</span>
+                            </div>
+                            <button 
+                                onClick={() => setShowInstallGuide(false)}
+                                className="text-xs text-neutral-500 hover:text-neutral-200 px-2 py-1 rounded-lg hover:bg-neutral-800 transition"
+                            >
+                                ✕ Close
+                            </button>
+                        </div>
+
+                        <div className="space-y-4 text-xs text-neutral-300">
+                            <p className="text-neutral-400">
+                                In Google Chrome on your Android phone, you can install this app with 2 quick taps:
+                            </p>
+
+                            <div className="space-y-3">
+                                <div className="flex items-start gap-3 p-3 bg-neutral-950 border border-neutral-800 rounded-2xl">
+                                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-bold flex items-center justify-center text-xs">1</span>
+                                    <div>
+                                        <p className="font-semibold text-white">Tap the 3 dots (⋮) in Chrome</p>
+                                        <p className="text-[11px] text-neutral-400 mt-0.5">In the top-right corner of your browser.</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start gap-3 p-3 bg-neutral-950 border border-neutral-800 rounded-2xl">
+                                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-bold flex items-center justify-center text-xs">2</span>
+                                    <div>
+                                        <p className="font-semibold text-white">Scroll down the menu</p>
+                                        <p className="text-[11px] text-neutral-400 mt-0.5">Scroll down past "Translate" and tap <strong className="text-amber-400">"Install and create shortcut"</strong> or <strong className="text-amber-400">"Add to Home screen"</strong>.</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-start gap-3 p-3 bg-neutral-950 border border-neutral-800 rounded-2xl">
+                                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 font-bold flex items-center justify-center text-xs">3</span>
+                                    <div>
+                                        <p className="font-semibold text-white">Tap "Install"</p>
+                                        <p className="text-[11px] text-neutral-400 mt-0.5">The app will download to your home screen with its own icon!</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={() => setShowInstallGuide(false)}
+                            className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-xl text-xs transition"
+                        >
+                            Got It!
+                        </button>
                     </div>
                 </div>
             )}
