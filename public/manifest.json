@@ -1,0 +1,21 @@
+{
+    "short_name": "Focus18",
+    "name": "18-Day Locked Sprint & Focus Engine",
+    "icons": [
+        {
+            "src": "/icon-192.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        },
+        {
+            "src": "/icon-512.png",
+            "type": "image/png",
+            "sizes": "512x512"
+        }
+    ],
+    "start_url": "/",
+    "background_color": "#0a0a0a",
+    "theme_color": "#0a0a0a",
+    "display": "standalone",
+    "orientation": "portrait"
+}
