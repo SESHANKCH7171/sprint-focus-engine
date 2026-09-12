@@ -7,10 +7,6 @@
   <meta name="theme-color" content="#0a0a0a" />
   <title>Sprint Focus Engine • Target Deadline & Pomodoro</title>
   <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icon-192.png" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -23,20 +19,15 @@
   <script type="module" src="/src/main.jsx"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').then((reg) => {
-          reg.onupdatefound = () => {
-            const worker = reg.installing;
-            if (worker) {
-              worker.onstatechange = () => {
-                if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New version installed, reload automatically
-                  window.location.reload();
-                }
-              };
-            }
-          };
-        }).catch(err => console.error('SW Error:', err));
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for (let registration of registrations) {
+          registration.unregister();
+        }
+      });
+    }
+    if ('caches' in window) {
+      caches.keys().then(function(keys) {
+        keys.forEach(function(key) { caches.delete(key); });
       });
     }
   </script>
