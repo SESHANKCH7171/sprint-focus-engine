@@ -178,46 +178,66 @@ export default function App() {
     const endTimeRef = useRef(null);
     const workerRef = useRef(null);
 
-    // Initialize inline Web Worker to avoid background tab throttling
+    // Initialize inline Web Worker to avoid background tab throttling (with fallback for mobile)
     useEffect(() => {
-        const workerCode = `
-      let timer = null;
-      self.onmessage = function(e) {
-        if (e.data === 'START') {
-          if (!timer) {
-            timer = setInterval(() => self.postMessage('TICK'), 250);
-          }
-        } else if (e.data === 'STOP') {
-          clearInterval(timer);
-          timer = null;
-        }
-      };
-    `;
-        const blob = new Blob([workerCode], { type: 'application/javascript' });
-        workerRef.current = new Worker(URL.createObjectURL(blob));
-
-        workerRef.current.onmessage = () => {
+        let fallbackTimer = null;
+        const onTick = () => {
             if (!endTimeRef.current) return;
             const rem = Math.max(0, endTimeRef.current - Date.now());
             setRemainingMs(rem);
 
             if (rem <= 0) {
                 setIsActive(false);
-                workerRef.current.postMessage('STOP');
+                if (workerRef.current?.postMessage) {
+                    workerRef.current.postMessage('STOP');
+                }
                 endTimeRef.current = null;
                 playTwoToneChime();
                 if (mode === 'work' || mode === 'custom') {
                     setSessionsCompleted(prev => {
                         const next = prev + 1;
-                        localStorage.setItem('sessions_completed', next);
+                        try { localStorage.setItem('sessions_completed', next); } catch {}
                         return next;
                     });
                 }
             }
         };
 
+        try {
+            const workerCode = `
+              let timer = null;
+              self.onmessage = function(e) {
+                if (e.data === 'START') {
+                  if (!timer) timer = setInterval(() => self.postMessage('TICK'), 250);
+                } else if (e.data === 'STOP') {
+                  clearInterval(timer);
+                  timer = null;
+                }
+              };
+            `;
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            workerRef.current = new Worker(URL.createObjectURL(blob));
+            workerRef.current.onmessage = onTick;
+        } catch (err) {
+            console.warn("Web Worker unavailable on this device, using safe fallback timer", err);
+            workerRef.current = {
+                postMessage: (msg) => {
+                    if (msg === 'START') {
+                        if (!fallbackTimer) fallbackTimer = setInterval(onTick, 250);
+                    } else if (msg === 'STOP') {
+                        if (fallbackTimer) clearInterval(fallbackTimer);
+                        fallbackTimer = null;
+                    }
+                },
+                terminate: () => {
+                    if (fallbackTimer) clearInterval(fallbackTimer);
+                }
+            };
+        }
+
         return () => {
-            if (workerRef.current) workerRef.current.terminate();
+            if (fallbackTimer) clearInterval(fallbackTimer);
+            if (workerRef.current?.terminate) workerRef.current.terminate();
         };
     }, [mode]);
 
