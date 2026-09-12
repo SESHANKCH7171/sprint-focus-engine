@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     Lock, Unlock, Play, Pause, RotateCcw, SkipForward,
     ChevronLeft, ChevronRight, Settings, ShieldAlert, CheckCircle2,
-    Minimize2, Maximize2, Flame
+    Minimize2, Maximize2, Flame, Calendar, Clock, Sparkles
 } from 'lucide-react';
 
 // --- TIME WISDOM QUOTES ---
@@ -71,14 +71,19 @@ function playTwoToneChime() {
 
 export default function App() {
     // ----------------------------------------------------
-    // 1. MACRO 18-DAY COUNTDOWN ENGINE
+    // 1. DYNAMIC MACRO SPRINT & CAMPAIGN ENGINE
     // ----------------------------------------------------
-    const DEFAULT_DURATION_MS = 18 * 24 * 60 * 60 * 1000;
+    const [campaignName, setCampaignName] = useState(() => {
+        return localStorage.getItem('sprint_campaign_name') || 'September Mastery Sprint';
+    });
 
     const [macroStart, setMacroStart] = useState(() => {
         const stored = localStorage.getItem('sprint_start_timestamp');
         if (stored) return parseInt(stored, 10);
-        const now = Date.now();
+        // Default start: Today at 00:00:00 (Sep 12, 2026)
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        const now = d.getTime();
         localStorage.setItem('sprint_start_timestamp', now);
         return now;
     });
@@ -86,7 +91,8 @@ export default function App() {
     const [macroTarget, setMacroTarget] = useState(() => {
         const stored = localStorage.getItem('sprint_target_timestamp');
         if (stored) return parseInt(stored, 10);
-        const target = Date.now() + DEFAULT_DURATION_MS;
+        // Default target: Sep 30, 2026 23:59:59 (18-Day Sprint)
+        const target = new Date(2026, 8, 30, 23, 59, 59, 999).getTime();
         localStorage.setItem('sprint_target_timestamp', target);
         return target;
     });
@@ -101,7 +107,7 @@ export default function App() {
     }, [macroTarget]);
 
     const macroStats = useMemo(() => {
-        const totalDuration = macroTarget - macroStart;
+        const totalDuration = Math.max(1000, macroTarget - macroStart);
         const elapsed = Math.max(0, Date.now() - macroStart);
         const remaining = Math.max(0, macroTarget - Date.now());
 
@@ -109,14 +115,53 @@ export default function App() {
             ? Math.min(100, Math.max(0, (elapsed / totalDuration) * 100)).toFixed(1)
             : 100;
 
-        const currentDay = Math.min(18, Math.floor(elapsed / (24 * 60 * 60 * 1000)) + 1);
+        const totalDays = Math.max(1, Math.ceil(totalDuration / (24 * 60 * 60 * 1000)));
+        const currentDay = Math.min(totalDays, Math.floor(elapsed / (24 * 60 * 60 * 1000)) + 1);
 
-        const d = Math.floor(remaining / (1000 * 60 * 60 * 24));
-        const h = Math.floor((remaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const m = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-        const s = Math.floor((remaining % (1000 * 60)) / 1000);
+        const totalRemainingSec = Math.floor(remaining / 1000);
+        const d = Math.floor(totalRemainingSec / (60 * 60 * 24));
+        const h = Math.floor((totalRemainingSec % (60 * 60 * 24)) / (60 * 60));
+        const m = Math.floor((totalRemainingSec % (60 * 60)) / 60);
+        const s = totalRemainingSec % 60;
 
-        return { progress, currentDay, d, h, m, s, isFinished: remaining <= 0 };
+        // Context breakdown for long-term multi-month / multi-year campaigns
+        const years = Math.floor(d / 365);
+        const remDaysAfterYears = d % 365;
+        const months = Math.floor(remDaysAfterYears / 30);
+        const daysInMonth = remDaysAfterYears % 30;
+
+        let contextSummary = '';
+        if (years > 0) {
+            contextSummary = `${years}y ${months}mo ${daysInMonth}d`;
+        } else if (months > 0) {
+            contextSummary = `${months}mo ${daysInMonth}d`;
+        } else {
+            contextSummary = `${d}d ${h}h`;
+        }
+
+        const targetDateObj = new Date(macroTarget);
+        const formattedTarget = targetDateObj.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+
+        return {
+            progress,
+            totalDays,
+            currentDay,
+            d,
+            h,
+            m,
+            s,
+            years,
+            months,
+            daysInMonth,
+            contextSummary,
+            formattedTarget,
+            isFinished: remaining <= 0
+        };
     }, [macroStart, macroTarget, macroTimeLeft]);
 
     // ----------------------------------------------------
@@ -282,6 +327,128 @@ export default function App() {
         });
     };
 
+    // ----------------------------------------------------
+    // 6. TARGET DEADLINE & CAMPAIGN MODAL STATE
+    // ----------------------------------------------------
+    const [showDateModal, setShowDateModal] = useState(false);
+    const [targetDateInput, setTargetDateInput] = useState('');
+    const [targetTimeInput, setTargetTimeInput] = useState('23:59');
+    const [campaignNameInput, setCampaignNameInput] = useState('');
+    const [resetStartToNow, setResetStartToNow] = useState(false);
+
+    const openDateModal = () => {
+        const d = new Date(macroTarget);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        setTargetDateInput(`${yyyy}-${mm}-${dd}`);
+        const hh = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        setTargetTimeInput(`${hh}:${min}`);
+        setCampaignNameInput(campaignName);
+        setResetStartToNow(false);
+        setShowDateModal(true);
+    };
+
+    const applyPreset = (presetKey) => {
+        const now = new Date();
+        let target = new Date();
+        let name = campaignNameInput;
+
+        if (presetKey === 'sept30') {
+            target = new Date(2026, 8, 30, 23, 59, 59);
+            name = "18-Day September Sprint";
+        } else if (presetKey === '7d') {
+            target = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+            target.setHours(23, 59, 59, 999);
+            name = "7-Day Power Sprint";
+        } else if (presetKey === '14d') {
+            target = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+            target.setHours(23, 59, 59, 999);
+            name = "14-Day Lock-In Sprint";
+        } else if (presetKey === '30d') {
+            target = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+            target.setHours(23, 59, 59, 999);
+            name = "30-Day Focus Sprint";
+        } else if (presetKey === 'endOfMonth') {
+            target = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+            name = "Monthly Milestone Sprint";
+        } else if (presetKey === 'endOfYear') {
+            target = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+            name = `${now.getFullYear()} Year-End Mission`;
+        }
+
+        const yyyy = target.getFullYear();
+        const mm = String(target.getMonth() + 1).padStart(2, '0');
+        const dd = String(target.getDate()).padStart(2, '0');
+        setTargetDateInput(`${yyyy}-${mm}-${dd}`);
+        setTargetTimeInput("23:59");
+        setCampaignNameInput(name);
+        setResetStartToNow(true);
+    };
+
+    const handleSaveTargetDate = (e) => {
+        e.preventDefault();
+        if (!targetDateInput) return;
+        const [year, month, day] = targetDateInput.split('-').map(Number);
+        const [hours, minutes] = (targetTimeInput || '23:59').split(':').map(Number);
+        const newTarget = new Date(year, month - 1, day, hours, minutes, 59, 999).getTime();
+
+        if (isNaN(newTarget)) return;
+
+        if (resetStartToNow || newTarget <= macroStart) {
+            const now = Date.now();
+            localStorage.setItem('sprint_start_timestamp', now);
+            setMacroStart(now);
+        }
+
+        localStorage.setItem('sprint_target_timestamp', newTarget);
+        setMacroTarget(newTarget);
+
+        const finalName = campaignNameInput.trim() || 'Locked Sprint Campaign';
+        localStorage.setItem('sprint_campaign_name', finalName);
+        setCampaignName(finalName);
+
+        setShowDateModal(false);
+    };
+
+    // Live calculations for date modal preview
+    const previewData = useMemo(() => {
+        if (!targetDateInput) return null;
+        try {
+            const [y, m, d] = targetDateInput.split('-').map(Number);
+            const [hh, mm] = (targetTimeInput || '23:59').split(':').map(Number);
+            const targetTs = new Date(y, m - 1, d, hh, mm, 59).getTime();
+            const startTs = resetStartToNow ? Date.now() : macroStart;
+            const totalMs = Math.max(0, targetTs - startTs);
+            const totalDays = Math.max(1, Math.ceil(totalMs / (24 * 60 * 60 * 1000)));
+            const remMs = Math.max(0, targetTs - Date.now());
+            const remDays = Math.max(0, Math.floor(remMs / (24 * 60 * 60 * 1000)));
+            const remYears = Math.floor(remDays / 365);
+            const remMonths = Math.floor((remDays % 365) / 30);
+            const remD = (remDays % 365) % 30;
+
+            let breakdown = '';
+            if (remYears > 0) breakdown = `${remYears} Year${remYears > 1 ? 's' : ''}, ${remMonths} Month${remMonths > 1 ? 's' : ''}, ${remD} Day${remD > 1 ? 's' : ''}`;
+            else if (remMonths > 0) breakdown = `${remMonths} Month${remMonths > 1 ? 's' : ''}, ${remD} Day${remD > 1 ? 's' : ''}`;
+            else breakdown = `${remDays} Day${remDays !== 1 ? 's' : ''}`;
+
+            return {
+                totalDays,
+                remDays,
+                breakdown,
+                formatted: new Date(targetTs).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                })
+            };
+        } catch {
+            return null;
+        }
+    }, [targetDateInput, targetTimeInput, resetStartToNow, macroStart]);
+
     const verifyPin = async (e) => {
         e.preventDefault();
         setAuthError('');
@@ -339,17 +506,25 @@ export default function App() {
 
                     {/* Top Row: Sprint Day Badge + Mode Selector + Expand */}
                     <div className="flex items-center justify-between z-10">
-                        <div className="flex items-center gap-2">
+                        <div 
+                            onClick={openDateModal}
+                            className="flex items-center gap-2 cursor-pointer hover:opacity-90 transition"
+                            title="Click to change target date / campaign"
+                        >
                             <div className="p-1.5 rounded-xl bg-amber-500/15 text-amber-400">
                                 <Flame size={16} className="animate-pulse" />
                             </div>
                             <div className="leading-tight">
                                 <div className="text-sm font-black text-white tracking-tight flex items-baseline gap-1">
                                     Day {macroStats.currentDay}
-                                    <span className="text-[10px] font-bold text-neutral-400">/ 18</span>
+                                    <span className="text-[10px] font-bold text-neutral-400">/ {macroStats.totalDays}</span>
                                 </div>
                                 <div className="text-[10px] font-mono text-neutral-400">
-                                    {macroStats.d}d {macroStats.h}h left
+                                    {macroStats.years > 0 
+                                        ? `${macroStats.years}y ${macroStats.months}m left` 
+                                        : macroStats.months > 0 
+                                        ? `${macroStats.months}m ${macroStats.daysInMonth}d left` 
+                                        : `${macroStats.d}d ${macroStats.h}h left`}
                                 </div>
                             </div>
                         </div>
@@ -471,16 +646,27 @@ export default function App() {
             {/* Center Layout: 18-Day Macro Clock & Pomodoro Engine */}
             <main className="w-full max-w-xl space-y-6 my-6">
 
-                {/* 18-DAY LOCKED BANNER */}
+                {/* DYNAMIC LOCKED SPRINT BANNER */}
                 <section className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
-                    <div className="flex items-center justify-between mb-4">
+                    {/* Top Status & Controls */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                         <div className="flex items-center gap-2">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">Locked Sprint Campaign</span>
+                            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                                {campaignName}
+                            </span>
                         </div>
 
-                        {/* Admin Lock & Widget Mode Buttons */}
+                        {/* Action Buttons */}
                         <div className="flex items-center gap-2">
+                            <button
+                                onClick={openDateModal}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-200 hover:text-amber-400 bg-neutral-950 border border-neutral-800 rounded-xl hover:bg-neutral-800/80 transition shadow-sm"
+                                title="Set Custom Target Date & Deadline"
+                            >
+                                <Calendar size={13} className="text-amber-400" />
+                                <span>Target Date</span>
+                            </button>
                             <button
                                 onClick={toggleWidgetMode}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-300 hover:text-amber-400 bg-neutral-950 border border-neutral-800 rounded-xl hover:bg-neutral-800/80 transition"
@@ -499,13 +685,27 @@ export default function App() {
                         </div>
                     </div>
 
-                    <div className="flex flex-col md:flex-row md:items-baseline justify-between gap-1 mb-4">
+                    {/* Day Tracker & Real-Time Remaining */}
+                    <div className="flex flex-col md:flex-row md:items-baseline justify-between gap-1 mb-2">
                         <h2 className="text-3xl font-black text-amber-400 tracking-tight">
-                            Day {macroStats.currentDay} <span className="text-lg font-medium text-neutral-400">/ 18</span>
+                            Day {macroStats.currentDay} <span className="text-lg font-medium text-neutral-400">/ {macroStats.totalDays}</span>
                         </h2>
-                        <div className="font-mono text-sm font-semibold text-neutral-300">
+                        <div className="font-mono text-sm font-semibold text-neutral-200">
                             {macroStats.d}d {macroStats.h}h {macroStats.m}m {macroStats.s}s remaining
                         </div>
+                    </div>
+
+                    {/* Target Deadline & Contextual Units Pill */}
+                    <div className="flex flex-wrap items-center justify-between text-xs text-neutral-400 mb-4 gap-1">
+                        <div className="flex items-center gap-1.5">
+                            <Clock size={12} className="text-amber-500" />
+                            <span>Deadline: <strong className="text-neutral-200">{macroStats.formattedTarget}</strong></span>
+                        </div>
+                        {(macroStats.years > 0 || macroStats.months > 0) && (
+                            <span className="px-2 py-0.5 rounded-full bg-neutral-950 border border-neutral-800 text-[11px] font-mono text-amber-400">
+                                {macroStats.contextSummary} remaining
+                            </span>
+                        )}
                     </div>
 
                     {/* Progress Bar */}
@@ -516,9 +716,9 @@ export default function App() {
                         />
                     </div>
                     <div className="flex justify-between items-center text-[11px] text-neutral-500 mt-2 font-mono">
-                        <span>0%</span>
+                        <span>Day 1 (0%)</span>
                         <span>{macroStats.progress}% Completed</span>
-                        <span>100%</span>
+                        <span>Day {macroStats.totalDays} (100%)</span>
                     </div>
                 </section>
 
@@ -611,6 +811,175 @@ export default function App() {
             <footer className="text-xs text-neutral-600 tracking-wider uppercase">
                 18-Day Focus Engine • Unthrottled Worker Sync
             </footer>
+
+            {/* ----------------------------------------------------
+                TARGET DATE & CAMPAIGN CONFIGURATION MODAL
+               ---------------------------------------------------- */}
+            {showDateModal && (
+                <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
+                    <div className="bg-neutral-900 border border-neutral-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5">
+                        
+                        {/* Header */}
+                        <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
+                            <div className="flex items-center gap-2 text-amber-400 font-bold text-base">
+                                <Calendar size={20} />
+                                <span>Sprint Target & Deadline Engine</span>
+                            </div>
+                            <button 
+                                onClick={() => setShowDateModal(false)}
+                                className="text-xs text-neutral-500 hover:text-neutral-200 px-2 py-1 rounded-lg hover:bg-neutral-800 transition"
+                            >
+                                ✕ Close
+                            </button>
+                        </div>
+
+                        {/* Form */}
+                        <form onSubmit={handleSaveTargetDate} className="space-y-4">
+                            
+                            {/* Campaign Name */}
+                            <div>
+                                <label className="text-xs font-semibold text-neutral-300 block mb-1">
+                                    Campaign / Goal Title
+                                </label>
+                                <input 
+                                    type="text"
+                                    value={campaignNameInput}
+                                    onChange={(e) => setCampaignNameInput(e.target.value)}
+                                    placeholder="e.g. September Mastery Sprint"
+                                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 font-medium"
+                                />
+                            </div>
+
+                            {/* Date & Time Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-semibold text-neutral-300 block mb-1">
+                                        Target Deadline Date
+                                    </label>
+                                    <input 
+                                        type="date"
+                                        value={targetDateInput}
+                                        onChange={(e) => setTargetDateInput(e.target.value)}
+                                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 font-mono"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-neutral-300 block mb-1">
+                                        Deadline Time
+                                    </label>
+                                    <input 
+                                        type="time"
+                                        value={targetTimeInput}
+                                        onChange={(e) => setTargetTimeInput(e.target.value)}
+                                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 font-mono"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Quick Presets */}
+                            <div>
+                                <label className="text-[11px] font-semibold text-neutral-400 block mb-1.5 uppercase tracking-wider">
+                                    Quick Presets
+                                </label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => applyPreset('sept30')}
+                                        className="px-2.5 py-1 bg-amber-500/15 border border-amber-500/30 text-amber-400 rounded-lg text-xs font-semibold hover:bg-amber-500/25 transition"
+                                    >
+                                        🔥 Sep 30 (18-Day)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyPreset('7d')}
+                                        className="px-2.5 py-1 bg-neutral-950 border border-neutral-800 text-neutral-300 rounded-lg text-xs hover:border-neutral-700 transition"
+                                    >
+                                        ⚡ 7 Days
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyPreset('14d')}
+                                        className="px-2.5 py-1 bg-neutral-950 border border-neutral-800 text-neutral-300 rounded-lg text-xs hover:border-neutral-700 transition"
+                                    >
+                                        🚀 14 Days
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyPreset('30d')}
+                                        className="px-2.5 py-1 bg-neutral-950 border border-neutral-800 text-neutral-300 rounded-lg text-xs hover:border-neutral-700 transition"
+                                    >
+                                        📅 30 Days
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyPreset('endOfMonth')}
+                                        className="px-2.5 py-1 bg-neutral-950 border border-neutral-800 text-neutral-300 rounded-lg text-xs hover:border-neutral-700 transition"
+                                    >
+                                        🎯 End of Month
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => applyPreset('endOfYear')}
+                                        className="px-2.5 py-1 bg-neutral-950 border border-neutral-800 text-neutral-300 rounded-lg text-xs hover:border-neutral-700 transition"
+                                    >
+                                        🌟 End of Year
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Reset Start Option */}
+                            <div className="flex items-center gap-2 pt-1">
+                                <input 
+                                    type="checkbox"
+                                    id="resetStart"
+                                    checked={resetStartToNow}
+                                    onChange={(e) => setResetStartToNow(e.target.checked)}
+                                    className="rounded border-neutral-800 bg-neutral-950 text-amber-500 focus:ring-0 cursor-pointer"
+                                />
+                                <label htmlFor="resetStart" className="text-xs text-neutral-300 cursor-pointer select-none">
+                                    Start campaign from today (Day 1)
+                                </label>
+                            </div>
+
+                            {/* Dynamic Live Preview Card */}
+                            {previewData && (
+                                <div className="p-3.5 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-1.5 text-xs">
+                                    <div className="flex justify-between items-center text-neutral-400">
+                                        <span>Target:</span>
+                                        <strong className="text-white">{previewData.formatted} at {targetTimeInput}</strong>
+                                    </div>
+                                    <div className="flex justify-between items-center text-neutral-400">
+                                        <span>Campaign Duration:</span>
+                                        <span className="font-mono font-bold text-amber-400">{previewData.totalDays} Total Days</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-neutral-400">
+                                        <span>Time Remaining:</span>
+                                        <span className="font-mono text-emerald-400">{previewData.breakdown}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Submit */}
+                            <div className="flex gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowDateModal(false)}
+                                    className="flex-1 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-xl font-semibold text-xs transition"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-xl font-bold text-xs transition shadow-lg"
+                                >
+                                    Save & Lock Target
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* ----------------------------------------------------
           ADMIN AUTHENTICATION & SETTINGS MODAL

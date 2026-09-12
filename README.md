@@ -11,10 +11,12 @@ A high-performance, dark-mode productivity web application and PWA engineered fo
 
 ## ✨ Features
 
-### 1. 🛡️ Macro 18-Day Locked Countdown Campaign
-- Tracks an unyielding 18-day macro campaign down to the second (`Day X / 18`).
-- Smooth visual progress bar from 0% to 100% completion.
-- **Anti-Tamper Admin Security Console**: Protected by a SHA-256 cryptographic PIN (Default: `1818`) to prevent impulsive timeline resets or adjustments.
+### 1. 🛡️ Dynamic Target Date & Campaign Context Engine
+- **Custom Deadlines**: Pick any deadline date & time (e.g. September 30, 2026 or any multi-month/year horizon).
+- **Adaptive Time Context**: Dynamically computes `Day X / Total Days`, remaining hours, minutes, and contextual units (`X Months, Y Days` or `X Years`).
+- **Quick Sprint Presets**: 1-click presets for **Sep 30 (18-Day Sprint)**, **7 Days**, **14 Days**, **30 Days**, **End of Month**, and **End of Year**.
+- **Live Visual Progress Bar**: Smooth 0% to 100% progress gauge tracking your pace towards the milestone.
+- **Anti-Tamper Admin Security Console**: Protected by a SHA-256 cryptographic PIN (Default: `1818`) to lock schedules and prevent impulsive resets.
 
 ### 2. ⚡ Unthrottled Focus Engine (Pomodoro)
 - **Zero Tab Throttling**: Employs an inline **Web Worker** background thread so intervals never pause or lag when switching browser tabs or locking your screen.
