@@ -809,7 +809,7 @@ export default function App() {
 
             {/* Footer */}
             <footer className="text-xs text-neutral-600 tracking-wider uppercase">
-                18-Day Focus Engine • Unthrottled Worker Sync
+                Sprint Focus Engine • Unthrottled Worker Sync
             </footer>
 
             {/* ----------------------------------------------------
